@@ -12,12 +12,14 @@ from homeassistant.core import callback
 from homeassistant.const import CONF_NAME, CONF_PASSWORD
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS, SUPPORT_BRIGHTNESS, ATTR_COLOR_TEMP, SUPPORT_COLOR_TEMP,
-    Light, PLATFORM_SCHEMA)
+    ATTR_HS_COLOR, SUPPORT_COLOR, Light, PLATFORM_SCHEMA)
 import homeassistant.helpers.config_validation as cv
 from homeassistant.util.color import \
     color_temperature_kelvin_to_mired as kelvin_to_mired
 from homeassistant.util.color import \
     color_temperature_mired_to_kelvin as mired_to_kelvin
+
+from homeassistant.util.color import color_RGB_to_hs, color_hs_to_RGB
 
 REQUIREMENTS = ['laurel==0.3']
 
@@ -56,10 +58,13 @@ class GELight(Light):
         self._brightness = 255
         bulb.set_callback(self.callback, None)
 
+        self._features = SUPPORT_BRIGHTNESS
+
+        if bulb.supports_rgb():
+            self._features |= SUPPORT_COLOR
+
         if bulb.supports_temperature():
-            self._features = SUPPORT_BRIGHTNESS | SUPPORT_COLOR_TEMP
-        else:
-            self._features = SUPPORT_BRIGHTNESS
+            self._features |= SUPPORT_COLOR_TEMP
             
     def callback(self, args):
         if self.hass is not None:
@@ -91,8 +96,20 @@ class GELight(Light):
     @property
     def color_temp(self):
         """Return the color temperature of this light."""
-        kelvin = self._bulb.temperature * 50 + 2000
-        return kelvin_to_mired(kelvin)
+        if not self._bulb.rgb:
+            kelvin = self._bulb.temperature * 50 + 2000
+            return kelvin_to_mired(kelvin)
+        return None
+
+    @property
+    def hs_color(self):
+        """Return the color of this light."""
+        if self._bulb.rgb:
+            r = self._bulb.red / 255.
+            g = self._bulb.green / 255.
+            b = self._bulb.blue / 255.
+            return color_RGB_to_hs(r, g, b)
+        return None
 
     @property
     def min_mireds(self):
@@ -115,10 +132,14 @@ class GELight(Light):
         if not self.is_on:
             self._bulb.set_power(True)
 
+        color = kwargs.get(ATTR_HS_COLOR)
         temperature = kwargs.get(ATTR_COLOR_TEMP)
         brightness = kwargs.get(ATTR_BRIGHTNESS)
 
-        if temperature is not None:
+        if color is not None:
+            r, g, b = color_hs_to_RGB(*color)
+            self._bulb.set_rgb(int(r*255+.5), int(g*255+.5), int(b*255+.5))
+        elif temperature is not None:
             # Colour temperature is a percentage between 2000K and 7000K
             kelvin = mired_to_kelvin(temperature)
             percent = int((kelvin - 2000) / 50)
