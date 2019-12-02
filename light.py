@@ -6,6 +6,7 @@ https://home-assistant.io/components/light.c_by_ge/
 """
 import logging
 
+import time
 import voluptuous as vol
 
 from homeassistant.core import callback
@@ -105,9 +106,9 @@ class GELight(Light):
     def hs_color(self):
         """Return the color of this light."""
         if self._bulb.rgb:
-            r = self._bulb.red / 255.
-            g = self._bulb.green / 255.
-            b = self._bulb.blue / 255.
+            r = self._bulb.red
+            g = self._bulb.green
+            b = self._bulb.blue
             return color_RGB_to_hs(r, g, b)
         return None
 
@@ -131,23 +132,27 @@ class GELight(Light):
 
         if not self.is_on:
             self._bulb.set_power(True)
+            time.sleep(0.1)
 
         color = kwargs.get(ATTR_HS_COLOR)
         temperature = kwargs.get(ATTR_COLOR_TEMP)
         brightness = kwargs.get(ATTR_BRIGHTNESS)
 
         if color is not None:
-            r, g, b = color_hs_to_RGB(*color)
-            self._bulb.set_rgb(int(r*255+.5), int(g*255+.5), int(b*255+.5))
+            self._bulb.set_rgb(*color_hs_to_RGB(*color))
+            time.sleep(0.1)
         elif temperature is not None:
             # Colour temperature is a percentage between 2000K and 7000K
             kelvin = mired_to_kelvin(temperature)
             percent = int((kelvin - 2000) / 50)
             self._bulb.set_temperature(percent)
+            time.sleep(0.1)
 
         if brightness is not None:
             self._bulb.set_brightness(int(brightness/2.55))
+            time.sleep(0.1)
 
     def turn_off(self, **kwargs):
         """Turn the specified light off."""
         self._bulb.set_power(False)
+        time.sleep(0.1)
